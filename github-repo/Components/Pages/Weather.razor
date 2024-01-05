@@ -1,0 +1,163 @@
+﻿@page "/"
+
+@using System.Linq.Expressions
+@using System.Dynamic
+@using System.Text
+
+@rendermode InteractiveServer
+
+<PageTitle>Weather</PageTitle>
+
+<h1>Weather</h1>
+
+<p>This component demonstrates showing data.</p>
+
+<FluentStack>
+    <FluentButton Loading="@IsTableLoading" OnClick="@LoadRandomData" Appearance="Appearance.Accent">Load Random Data</FluentButton>
+</FluentStack>
+
+<p></p>
+
+@if (IsTableUpdated)
+{
+    <div style="width: 900px ;overflow-x: scroll; max-height: 600px">
+        @{
+            var gridStyleColumns = $"repeat({RandomColumns.Count}, 200px)";
+        }
+        <FluentDataGrid Virtualize="true" Items=@RandomData GenerateHeader="GenerateHeaderOption.Sticky"
+                        ResizableColumns=true GridTemplateColumns=@gridStyleColumns>
+            <ChildContent>
+                @foreach (var column in RandomColumns)
+                {
+                    var lambda = @GetPropertyLambda(column);
+                    <PropertyColumn Title="@column" Property=@lambda />
+                }
+            </ChildContent>
+            <EmptyContent>
+                <span style="color: #9f9f9f; font-weight: normal"><i>No data</i></span>
+            </EmptyContent>
+        </FluentDataGrid>
+    </div>
+}
+
+@code {
+    public bool IsTableUpdated = false;
+    public bool IsTableLoading = false;
+
+    public List<string> RandomColumns = [];
+    private IQueryable<dynamic>? RandomData;
+
+    private IQueryable<WeatherForecast>? forecasts;
+
+    private class WeatherForecast
+    {
+        public DateOnly Date { get; set; }
+        public int TemperatureC { get; set; }
+        public string? Summary { get; set; }
+        public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+    }
+
+    private async Task LoadRandomData()
+    {
+        IsTableUpdated = false;
+        IsTableLoading = true;
+
+        await Task.Delay(500);
+
+        this.RandomColumns = GetRandomColumns(10, 20);
+        List<List<string>> randomRows = GetRandomRows(RandomColumns.Count, 100, 1000);
+
+        UpdateRandomTable(RandomColumns, randomRows);
+
+        IsTableUpdated = true;
+        IsTableLoading = false;
+    }
+
+    private void UpdateRandomTable(List<string> tableHeaders, List<List<string>> rows)
+    {
+        RandomData = null;
+        List<dynamic> tableRows = Enumerable.Empty<dynamic>().ToList();
+
+        for (int i = 0; i < rows.Count; i++)
+        {
+            var finaDataRow = new ExpandoObject() as IDictionary<string, object>;
+
+            List<string> row = rows[i];
+
+            for (int j = 0; j < row.Count; j++)
+            {
+                finaDataRow.Add(tableHeaders[j], row[j]);
+            }
+
+            tableRows.Add(finaDataRow);
+        }
+        RandomData = tableRows.AsQueryable();
+    }
+
+    private List<string> GetRandomColumns(int min, int max)
+    {
+        Random random = new Random();
+        int randomNumberOfColumns = random.Next(min, max + 1);
+        List<string> randomColumns = new List<string>();
+
+        for (int i = 1; i <= randomNumberOfColumns; i++)
+        {
+            randomColumns.Add("Column" + i);
+        }
+
+        return randomColumns;
+    }
+
+    private List<List<string>> GetRandomRows(int randomColumnsCount, int min, int max)
+    {
+        Random random = new Random();
+        int randomNumberOfRows = random.Next(min, max + 1);
+        List<List<string>> randomRows = [];
+
+        for (int i = 1; i <= randomNumberOfRows; i++)
+        {
+            randomRows.Add(GetRandomRow(randomColumnsCount));
+        }
+
+        return randomRows;
+    }
+
+    private List<string> GetRandomRow(int randomColumnsCount)
+    {
+        Random random = new Random();
+        List<string> randomRow = new List<string>();
+
+        for (int i = 1; i <= randomColumnsCount; i++)
+        {
+            randomRow.Add("Data " + GenerateRandomString());
+        }
+
+        return randomRow;
+    }
+
+    private string GenerateRandomString()
+    {
+        Random random = new Random();
+        int length = random.Next(5, 11);
+
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        StringBuilder result = new StringBuilder(length);
+
+        for (int i = 0; i < length; i++)
+        {
+            result.Append(chars[random.Next(chars.Length)]);
+        }
+
+        return result.ToString();
+    }
+
+    public static Expression<Func<dynamic, object>> GetPropertyLambda(string propertyName)
+    {
+        var parameter = Expression.Parameter(typeof(object), "x");
+        var cast = Expression.Convert(parameter, typeof(IDictionary<string, object>));
+        var propertyAccess = Expression.Property(cast, "Item", Expression.Constant(propertyName));
+        var convert = Expression.Convert(propertyAccess, typeof(object));
+
+        return Expression.Lambda<Func<dynamic, object>>(convert, parameter);
+    }
+}
